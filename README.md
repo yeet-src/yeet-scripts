@@ -13,7 +13,6 @@ Scripts are evaluated as ES modules. `import` / `export` syntax works.
 
 ```js
 import myQuery from './my-query.graphql';
-import myProbe from './probe.bpf.o';
 ```
 
 ### Special import rules
@@ -21,7 +20,6 @@ import myProbe from './probe.bpf.o';
 | File extension | What you get |
 |---|---|
 | `.gql`, `.graphql` | A function `(vars?) => { query, subscribe, unsubscribe }` — see [GraphQL modules](#graphql-modules) |
-| `.bpf.o` | A BPF blob proxy object — see [BPF modules](#bpf-modules) |
 | Everything else | Normal ES module |
 
 `require()` / CommonJS is **not** supported.
@@ -63,7 +61,7 @@ console.log(yeet.args);
 
 ### `yeet.exit()`
 
-Terminates the running isolate. Equivalent to the global `exit()` function.
+Terminates the running isolate. Any registered exit handlers run first.
 
 ```js
 yeet.exit();
@@ -99,32 +97,32 @@ console.log(data.host.uptime.uptime);
 To discover what the graph exposes, run `yeet graph dump` for the SDL or
 `yeet graph query '<gql>'` for ad-hoc queries from the shell.
 
-#### `yeet.graph.subscribe(gql: string, ticket: string, callback: (data: any) => void): void`
+#### `yeet.graph.subscribe(gql: string, callback: (data: any) => void): string`
 
 Starts a live subscription to a GraphQL query. The callback is invoked each
-time the result changes. `ticket` is a caller-supplied string used to
-identify and cancel the subscription later — it must be unique within the
-isolate.
+time the result changes. Returns an auto-generated **ticket string** —
+capture it if you intend to call `unsubscribe` later.
 
 ```js
-yeet.graph.subscribe(
+const ticket = yeet.graph.subscribe(
   `{ network { interfaces { name rx_bytes tx_bytes } } }`,
-  "net-sub",
   (data) => console.log(data),
 );
 ```
 
-> **Implementation note:** `subscribe` is a stream binding. The callback is
-> the last positional argument and is registered as a stream handler on the
-> bus. The ticket string is passed as the second argument.
+> **Implementation note:** `subscribe` is a stream binding. The callback
+> must be the last positional argument; it is stripped off and registered
+> as a stream handler on the bus. The runtime generates a `__stream.N`
+> topic for it and returns that topic to the caller as the ticket.
 
 #### `yeet.graph.unsubscribe(ticket: string): Promise<boolean>`
 
 Cancels a running subscription. Returns `true` if the subscription was
-found and removed, `false` otherwise.
+found and removed, `false` otherwise. The `ticket` is the string returned
+by `subscribe`.
 
 ```js
-await yeet.graph.unsubscribe("net-sub");
+await yeet.graph.unsubscribe(ticket);
 ```
 
 ---
@@ -303,17 +301,6 @@ The callback receives no arguments.
 
 ---
 
-## `exit()` (global)
-
-```js
-exit();
-```
-
-Terminates the isolate immediately. Any registered exit handlers run first.
-Identical to `yeet.exit()`.
-
----
-
 ## GraphQL modules
 
 Importing a `.gql` or `.graphql` file produces a module that exports a
@@ -327,13 +314,13 @@ const { query, subscribe, unsubscribe } = getStatus({ nodeId: 42 });
 
 const result = await query();
 
-// Streaming subscription:
-subscribe((data) => {
+// Streaming subscription — capture the returned ticket so you can cancel:
+const ticket = subscribe((data) => {
   console.log(data);
 });
 
 // Cancel it later:
-unsubscribe(ticket);
+await unsubscribe(ticket);
 ```
 
 The default export is `(vars?: Record<string, any>) => { query, subscribe, unsubscribe }`.
@@ -343,51 +330,8 @@ replaced with their values. Strings are quoted; numbers and booleans are
 inserted as-is.
 
 The `subscribe` / `unsubscribe` returned by the module call delegate to
-`yeet.graph.subscribe` / `yeet.graph.unsubscribe`.
-
----
-
-## BPF modules
-
-Importing a `.bpf.o` file produces a proxy object for managing an eBPF
-program blob.
-
-```js
-import probe from './tcp_probe.bpf.o';
-
-// Declare map bindings before loading:
-probe.bind("events", { kind: "ring_buf" });
-
-// Attach programs to hooks:
-probe.attach("tcp_connect", { type: "kprobe" });
-
-// Load the blob (async):
-const { blob_id } = await probe.start();
-
-// Subscribe to a map by name:
-probe.events.subscribe((event) => {
-  console.log(event);
-});
-
-// Read a map entry by key:
-const value = await probe.events.read(key);
-```
-
-### Proxy API
-
-| Method/property | Description |
-|---|---|
-| `probe.loaded` | `boolean` — true once `.start()` has resolved |
-| `probe.bind(name, opts)` | Declares a map binding; returns proxy for chaining |
-| `probe.attach(progName, opts?)` | Declares a program attachment; returns proxy for chaining |
-| `probe.start(bindings?)` | `Promise<{ blob_id: string }>` — loads the BPF object. Accepts an optional array of binding descriptors for backwards compat. Idempotent. |
-| `probe.<mapName>.subscribe(cb)` | Streams ring_buf events for map `mapName` to `cb` |
-| `probe.<mapName>.read(key)` | `Promise<any>` — reads a map entry by key |
-
-> **Note:** `yeet.blob.*` (the underlying binding for `.start()`,
-> `.subscribe()`, and `.map_read()`) is the host-provided primitive that
-> BPF modules delegate to internally. Script authors should work through
-> the `.bpf.o` import proxy rather than calling `yeet.blob` directly.
+`yeet.graph.subscribe` / `yeet.graph.unsubscribe`. `subscribe` returns the
+auto-generated ticket string from the underlying call.
 
 ---
 
@@ -466,8 +410,7 @@ them will result in `ReferenceError` or `TypeError`.
 - There is no parallelism within a single isolate. All JavaScript executes
   on one thread.
 - The isolate terminates when the top-level module finishes and no pending
-  timers or unresolved promises remain, or when `exit()` / `yeet.exit()` is
-  called.
+  timers or unresolved promises remain, or when `yeet.exit()` is called.
 - Uncaught exceptions and unhandled promise rejections are reported to the
   daemon as diagnostic events (with message, stack trace, and source
   context) and terminate the isolate.
