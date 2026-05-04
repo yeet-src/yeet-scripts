@@ -36,58 +36,61 @@ cleanup_pids() {
 }
 trap cleanup_pids EXIT
 
-# Flavor picker — sets the angle for the wall. Each choice maps to a
-# brief in /opt/prompts/flavors/ that gets injected into DRIVE.md at
-# the __FLAVOR_BRIEF__ placeholder.
-flavor=$(gum choose \
-    --header "what's the angle" \
-    --header.foreground 165 \
-    --header.bold \
-    --header.border rounded \
-    --header.border-foreground 165 \
-    --header.padding "0 2" \
-    --cursor.foreground 213 \
-    --selected.foreground 213 \
-    "useful stuff first" \
-    "i ALSO like to live dangerously" \
-    "random" \
-    "paint my /dev/tty like one of your french girls" \
-    "take me to another hausdorff dimension" \
-    "detective mode" \
-    "1970s mission control" \
-    "ready to have a seizure?" \
-    "take me back")
-flavor_exit=$?
+prompt_text=$(sed \
+    -e "s|__HOSTNAME__|$THIS_HOST|g" \
+    -e "s|__SESSION__|$SESSION|g" \
+    -e "s|__USR1_PID__|$USR1_PID|g" \
+    -e "/__FLAVOR_BRIEF__/r /opt/prompts/flavors/observability.md" \
+    -e "/__FLAVOR_BRIEF__/d" \
+    /opt/prompts/DRIVE.md)
 
-# Ctrl+C or "take me back" → bounce to the vibe-check menu.
-if [ "$flavor_exit" -eq 130 ] || [ "$flavor" = "take me back" ]; then
-    exec /opt/scripts/entry.sh
-fi
+# Center a card on the terminal. Args: top_margin content_width padding_h [lines...]
+_card() {
+    local mv=$1 cw=$2 ph=$3
+    shift 3
+    local mh
+    mh=$(( ( $(tput cols 2>/dev/null || echo 80) - cw - ph*2 - 2 ) / 2 ))
+    [ "$mh" -lt 0 ] && mh=0
+    gum style \
+        --border rounded \
+        --border-foreground 165 \
+        --padding "1 $ph" \
+        --margin "$mv $mh" \
+        --width "$cw" \
+        --align center \
+        "$@"
+}
 
-case "$flavor" in
-    "useful stuff first")                       flavor_file=/opt/prompts/flavors/observability.md ;;
-    "i ALSO like to live dangerously")          flavor_file=/opt/prompts/flavors/chaos.md ;;
-    "random")                                   flavor_file=/opt/prompts/flavors/surprise.md ;;
-    "paint my /dev/tty like one of your french girls")   flavor_file=/opt/prompts/flavors/aesthetic.md ;;
-    "take me to another hausdorff dimension")   flavor_file=/opt/prompts/flavors/hausdorff.md ;;
-    "detective mode")                           flavor_file=/opt/prompts/flavors/forensic.md ;;
-    "1970s mission control")                    flavor_file=/opt/prompts/flavors/retro.md ;;
-    "ready to have a seizure?")                 flavor_file=/opt/prompts/flavors/epilepsy.md ;;
-    *)                                          flavor_file=/opt/prompts/flavors/observability.md ;;
-esac
+_cols=$(tput cols 2>/dev/null || echo 80)
+_lines=$(tput lines 2>/dev/null || echo 24)
+_cw=46   # content width inside the card
+_ph=5    # horizontal padding inside the card
 
-# sed `r` reads to end of script-line for its filename argument; combining
-# it with other commands via `-e` confuses GNU sed's parser, so feed the
-# whole script via stdin where `r ${flavor_file}` lives on its own line.
-prompt_text=$(printf '%s\n' \
-    "s|__HOSTNAME__|$THIS_HOST|g" \
-    "s|__SESSION__|$SESSION|g" \
-    "s|__USR1_PID__|$USR1_PID|g" \
-    "/__FLAVOR_BRIEF__/{" \
-    "r ${flavor_file}" \
-    "d" \
-    "}" \
-    | sed -f - /opt/prompts/DRIVE.md)
+# ── Step 1 ──────────────────────────────────────────────────────────────────
+clear
+_mv=$(( (_lines - 16) / 2 ))
+[ "$_mv" -lt 0 ] && _mv=0
+
+_card "$_mv" "$_cw" "$_ph" \
+    "$(gum style --foreground 165 --bold 'Step 1.  Prepare your coding agent')" \
+    "" \
+    "$(gum style --foreground 250 'Launch Claude Code on your host')" \
+    "" \
+    "$(gum style --foreground 46 --align left 'claude')" \
+    "" \
+    "$(gum style --foreground 240 'The next screen will give you a prompt to get the agent started')" \
+    "" \
+    "$(gum style --foreground 240 --italic 'Press enter to continue')"
+
+read -rs < /dev/tty
+
+# ── Step 2 ──────────────────────────────────────────────────────────────────
+clear
+_card 2 "$_cw" "$_ph" \
+    "$(gum style --foreground 165 --bold 'step 2 / 2')" \
+    "" \
+    "$(gum style --foreground 250 'paste this prompt into claude code')"
+echo
 
 printf '%s\n' "$prompt_text" | bat -l md --style=plain --paging=never
 
@@ -98,57 +101,46 @@ printf '%s\n' "$prompt_text" | bat -l md --style=plain --paging=never
 printf '\033]52;c;%s\a' "$(printf '%s' "$prompt_text" | base64 -w 0)"
 
 echo
-gum style --foreground 165 --italic "prompt sent to your clipboard — paste into claude code on your host (or copy from above if it didn't land)."
+gum style --foreground 165 --italic "prompt copied to clipboard — paste into claude code on your host (or copy from above if it didn't land)."
 echo
+gum style --foreground 240 --italic 'Press enter to continue'
+read -rs < /dev/tty
+
+# ── Waiting for Claude to connect ────────────────────────────────────────────
+clear
+_bw=50; _ph=4
+_mh=$(( (_cols - _bw - _ph*2 - 2) / 2 )); [ "$_mh" -lt 0 ] && _mh=0
+_mv=$(( (_lines - 10) / 2 ));              [ "$_mv" -lt 0 ] && _mv=0
+
+gum style \
+    --border rounded --border-foreground 165 \
+    --padding "1 $_ph" --margin "$_mv $_mh" \
+    --width "$_bw" --align center \
+    "$(gum style --foreground 165 --bold 'Waiting for Claude to connect...')" \
+    "" \
+    "$(gum style --foreground 250 'Paste the prompt into Claude Code.')" \
+    "$(gum style --foreground 250 'Claude will connect automatically.')"
 
 rm -f /tmp/yeet-go
-gum confirm "ready to hand over the wheel?"
-gum_exit=$?
+while [ ! -f /tmp/yeet-go ]; do sleep 0.1; done
+rm -f /tmp/yeet-go
 
-if [ -f /tmp/yeet-go ]; then
-    # Claude auto-confirmed via SIGUSR1 → sidecar sentinel.
-    rm -f /tmp/yeet-go
-elif [ "$gum_exit" -ne 0 ]; then
-    exec /opt/scripts/entry.sh
-fi
-
-echo
-gum style --foreground 165 --bold "buckle up."
-echo
-sleep 0.3
-
+# ── Spin up the wheel session and hand control to Claude ─────────────────────
 tmux kill-session -t "$SESSION" 2>/dev/null || true
 
-# Source the wheel config BEFORE creating the session, in one tmux
-# invocation so the server doesn't exit between calls. Otherwise
-# new-session runs first and locks in tmux's built-in defaults for
-# session-scoped options (status-interval, status-left, status-style,
-# etc.); set -g afterwards doesn't reliably propagate to that session,
-# so the bottom status bar ends up showing stale defaults instead of the
-# cookstat spinner.
 tmux source-file /opt/scripts/wheel_tmux.conf \; \
      new-session -d -s "$SESSION" -c "$HOME" /opt/scripts/wait_for_driver.sh
 
-# Sidecar that writes status-left at sub-second rate. tmux's
-# status-interval is integer-only, so #() can't drive a smooth spinner;
-# this loop calls `tmux set-option` directly. Killed via EXIT trap.
 /opt/scripts/cookstat_spinner.sh "$SESSION" >/dev/null 2>&1 &
 SPINNER_PID=$!
 
-# Stress sidecar — watches /tmp/stress.modes and runs/kills synthetic
-# workloads (cpu/mem/net/disk/procs) the user toggles via F5's check
-# menu. Killed via EXIT trap; its own trap handles its child workloads.
 /opt/scripts/stress_runner.sh >/dev/null 2>&1 &
 STRESS_PID=$!
 
 tmux rename-window -t "$SESSION":0 'demos'
-
-# Window 1: spy window. Claude runs visible commands here (validations,
-# inspections, cat-of-draft-files) so the user can watch its work.
-# Press F2 to switch over (F1 to switch back to demos).
 tmux new-window -t "$SESSION":1 -n 'spy' -c "$HOME"
 tmux select-window -t "$SESSION":0
 
 tmux attach-session -t "$SESSION"
 
-exec /opt/scripts/entry.sh
+exec /opt/scripts/banger/pick.sh

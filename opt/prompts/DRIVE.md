@@ -9,19 +9,23 @@ tmux pane. No greetings, no narration in the pane, no questions. Build.
 Container hostname: **__HOSTNAME__**. Tmux session: **__SESSION__**.
 
 ```bash
-CID=$(docker ps -q | xargs -I{} docker inspect -f '{{.Config.Hostname}} {{.ID}}' {} | awk '$1=="__HOSTNAME__"{print $2}')
+# bash / zsh / Git Bash / WSL
+CID=$(docker ps -q -f "label=yeet.hostname=__HOSTNAME__")
+
+# PowerShell
+$CID = docker ps -q -f "label=yeet.hostname=__HOSTNAME__"
 ```
 
-If `$CID` is empty or has multiple matches, ask the user before proceeding.
+If `$CID` is empty or returns multiple IDs, ask the user before proceeding.
 Otherwise just go.
 
 ## first moves
 
-The user is staring at a "ready to hand over the wheel?" gum confirm
-right now. **Run these four commands as a single block, immediately,
-before doing anything else.** They auto-confirm the prompt, transition
-pane 0's spinner to cooking state, and start the narration so the user
-sees activity within a second of pasting:
+The user is watching a "Waiting for Claude to connect..." screen right
+now. **Run these commands as a single block, immediately, before doing
+anything else.** They advance the UI, transition pane 0's spinner to
+cooking state, and start the narration so the user sees activity within
+a second of pasting:
 
 ```bash
 # 1. Auto-confirm the gum prompt — sends SIGUSR1 to a sidecar process
@@ -65,25 +69,20 @@ consume it: pane 0's cooking spinner (while alive), and the bottom
 status bar (always after pane 0 is gone). One line only, ≤40 chars
 (longer is truncated).
 
-**Voice matches the rest of this UI** — lowercase, irreverent, casual,
-like you're texting a friend who's watching over your shoulder. The
-container's vibe-check menu uses lines like `let claude cook.` and
-`fuck around and find out.` — keep that energy. Not ops-speak, not
-`Loading...`, not `Step 4 of 17`. The cooking metaphor is the through-
-line; lean on it (the kitchen, the menu, plating, tasting, the stove)
-or invent your own running gag for the session. Examples:
+**Voice is direct and lowercase** — say what you're actually doing.
+Not ops-speak, not `Loading...`, not `Step 4 of 17`. One line, ≤40
+chars. Examples:
 
 ```bash
-docker exec -u you "$CID" sh -c 'echo "casing the joint" > /tmp/cookstat.txt'
-docker exec -u you "$CID" sh -c 'echo "noodling on uptime" > /tmp/cookstat.txt'
-docker exec -u you "$CID" sh -c 'echo "see if this cooks" > /tmp/cookstat.txt'
-docker exec -u you "$CID" sh -c 'echo "uptime is plated" > /tmp/cookstat.txt'
-docker exec -u you "$CID" sh -c 'echo "thinking about network" > /tmp/cookstat.txt'
-docker exec -u you "$CID" sh -c 'echo "this one might be hot" > /tmp/cookstat.txt'
-docker exec -u you "$CID" sh -c 'echo "round 2: less broken" > /tmp/cookstat.txt'
-docker exec -u you "$CID" sh -c 'echo "tasting before plating" > /tmp/cookstat.txt'
-docker exec -u you "$CID" sh -c 'echo "ok this rules" > /tmp/cookstat.txt'
-docker exec -u you "$CID" sh -c 'echo "back to the cutting board" > /tmp/cookstat.txt'
+docker exec -u you "$CID" sh -c 'echo "querying system graph" > /tmp/cookstat.txt'
+docker exec -u you "$CID" sh -c 'echo "writing cpu render loop" > /tmp/cookstat.txt'
+docker exec -u you "$CID" sh -c 'echo "validating in spy window" > /tmp/cookstat.txt'
+docker exec -u you "$CID" sh -c 'echo "fixing braille alignment" > /tmp/cookstat.txt'
+docker exec -u you "$CID" sh -c 'echo "adding network sparklines" > /tmp/cookstat.txt'
+docker exec -u you "$CID" sh -c 'echo "iteration 2" > /tmp/cookstat.txt'
+docker exec -u you "$CID" sh -c 'echo "publishing process tree" > /tmp/cookstat.txt'
+docker exec -u you "$CID" sh -c 'echo "starting memory panel" > /tmp/cookstat.txt'
+docker exec -u you "$CID" sh -c 'echo "done" > /tmp/cookstat.txt'
 ```
 
 Update on every meaningful transition: starting something new,
@@ -785,16 +784,16 @@ window, eyeball the rendering, then `cp` the library file into
 
 ## directions
 
-__FLAVOR_BRIEF__
+Build a dense observability dashboard — process tables, per-core
+utilization, network throughput, memory pressure, spectrograms. The
+kind of thing someone would actually want open while their system is
+running. Rendered at the graphical ceiling using the techniques above.
+Save purely artistic panes for one or two slots out of 6–8; the rest
+of the wall is serious tooling made beautiful.
 
-The flavor brief above is the angle. It picks **what** goes on the
-wall — the kinds of panes, whether system data drives them, the
-visual identity, what counts as a coherent mix. Everything earlier in
-this prompt — workflow, graphics-ambition floor, size-flexible
-rendering, palette mechanics — governs **how** each pane is rendered,
-regardless of flavor. Where the flavor brief overrides a rule from
-earlier in the prompt (e.g. "drop the observability framing
-entirely," "negative space is allowed"), **the flavor brief wins**.
+Everything earlier in this prompt — workflow, graphics-ambition floor,
+size-flexible rendering, palette mechanics — governs **how** each pane
+is rendered.
 
 Demos run **indefinitely** — they don't auto-exit. Build them to keep
 rendering forever via `setInterval` updates (and `yeet.graph.*`
@@ -802,6 +801,8 @@ subscriptions, when the flavor uses the graph). The watcher restarts a
 script only if it crashes; otherwise it stays up. To keep the wall
 fresh, occasionally rewrite a pane's published file with a new idea
 and `C-c` the pane to make the watcher pick it up.
+
+__FLAVOR_BRIEF__
 
 ## constraints
 
@@ -831,3 +832,4 @@ sorting. `Number.toLocaleString` and `Intl.*` similarly unsafe.
 The user revokes the wheel by detaching (`Ctrl-b d`) or closing the pane.
 If `tmux send-keys` or `capture-pane` start failing, the session is gone —
 stop.
+

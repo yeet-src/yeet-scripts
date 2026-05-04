@@ -46,6 +46,7 @@ run_in_tmux() {
 
 # Numbered menu: " 01  matrix" / " ··  exit". The trailing token is the name.
 build_menu() {
+    printf ' ·λ  Build with AI\n'
     local i=1
     for name in "${DISPLAYS[@]}"; do
         printf ' %02d  %s\n' "$i" "$name"
@@ -59,6 +60,16 @@ preview_cmd='
 name=$(printf "%s" {} | awk "{print \$NF}")
 if [ "$name" = "exit" ]; then
     printf "\n  \033[2m← back to the shell\033[0m\n"
+elif [ "$name" = "AI" ]; then
+    printf "\n"
+    gum style \
+        --border rounded \
+        --border-foreground 165 \
+        --align center \
+        --padding "0 3" \
+        --margin "0 2" \
+        "Build with AI"
+    printf "\n  Use Claude Code to build a custom live\n  terminal visualization — you describe it,\n  the agent writes and runs it.\n"
 else
     md=$(ls -1 '"$BANGERS_DIR"'/*-"$name"/README.md 2>/dev/null | head -1)
     if [ -n "$md" ]; then
@@ -78,7 +89,7 @@ while true; do
         --margin=1,2 \
         --padding=0,1 \
         --border=rounded \
-        --border-label=' bangers only. ' \
+        --border-label=' Explore Demos ' \
         --border-label-pos=3 \
         --prompt=' ❯ ' \
         --pointer='▌' \
@@ -99,6 +110,7 @@ while true; do
 
     case "$name" in
         exit|"") break ;;
+        "AI") exec /opt/scripts/ai_drive.sh ;;
         *)
             for i in "${!DISPLAYS[@]}"; do
                 if [ "${DISPLAYS[$i]}" = "$name" ]; then
