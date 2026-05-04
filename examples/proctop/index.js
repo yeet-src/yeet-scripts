@@ -60,7 +60,10 @@ const COLUMNS = [
     header: "COMMAND",
     width: 0, /* 0 = take remaining width */
     align: "left",
-    get: (p) => (p.cmdline.length > 0 ? p.cmdline.join(" ") : `[${p.comm}]`),
+    get: (p) =>
+      p.cmdline.length > 0
+        ? p.cmdline.join(" ").replace(/(?:\\\s|\s)+/g, " ").trim()
+        : `[${p.comm}]`,
     color: (p, s) => (p.cmdline.length === 0 ? style.dim(s) : s),
   },
 ];
