@@ -18,10 +18,12 @@ build:
 	docker build --build-arg YEET_CACHEBUST=$$(date +%s) -t $(IMAGE) . > /dev/null
 
 run:
-	@docker run --rm -it --hostname $(RANDOM_HOST) \
+	docker run --rm -it --hostname $(RANDOM_HOST) \
+	    --label "yeet.hostname=$(RANDOM_HOST)" \
 	    -e TERM=xterm-256color \
 	    -e COLORTERM=truecolor \
 	    -e FORCE_COLOR=1 \
 	    -e CLICOLOR=1 \
 	    -e CLICOLOR_FORCE=1 \
 	    $(IMAGE)
+

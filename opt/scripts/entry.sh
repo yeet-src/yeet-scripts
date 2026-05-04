@@ -15,7 +15,7 @@ splash
 
 echo
 choice=$(gum choose \
-    --header "vibe check" \
+    --header "Get started" \
     --header.foreground 46 \
     --header.bold \
     --header.border rounded \
@@ -23,11 +23,8 @@ choice=$(gum choose \
     --header.padding "0 2" \
     --cursor.foreground 213 \
     --selected.foreground 213 \
-    "bangers only." \
-    "let claude cook." \
-    "boring stuff first, cool shit after." \
-    "fuck around and find out." \
-    "i'm out.")
+    "Explore demos" \
+    "Exit")
 choose_exit=$?
 echo
 
@@ -42,32 +39,10 @@ fi
 trap - WINCH
 
 case "$choice" in
-    "bangers only.")
-        gum style --foreground 213 --italic "hopefully these are less cooked than your attention span."
-        echo
+    "Explore demos")
         exec /opt/scripts/banger/pick.sh
         ;;
-    "boring stuff first, cool shit after.")
-        gum style --foreground 51 --italic "story time, then the fun stuff."
-        echo
-        gum style --foreground 226 --bold "Tour coming soon."
-        echo
-        exec /bin/zsh
-        ;;
-    "fuck around and find out.")
-        gum style --foreground 196 --bold "may god have mercy on your prompt."
-        echo
-        sleep 0.4
-        exec /bin/zsh
-        ;;
-    "let claude cook.")
-        gum style --foreground 165 --italic "acceptance is the first step."
-        echo
-        sleep 0.4
-        exec /opt/scripts/ai_drive.sh
-        ;;
-    "i'm out.")
-        gum style --foreground 245 --italic "see ya."
+    "Exit")
         exit 0
         ;;
     *)
