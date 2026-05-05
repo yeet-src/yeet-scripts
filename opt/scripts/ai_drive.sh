@@ -45,84 +45,111 @@ prompt_text=$(sed \
     /opt/prompts/DRIVE.md)
 
 # Center a card on the terminal. Args: top_margin content_width padding_h [lines...]
-_card() {
-    local mv=$1 cw=$2 ph=$3
-    shift 3
-    local mh
-    mh=$(( ( $(tput cols 2>/dev/null || echo 80) - cw - ph*2 - 2 ) / 2 ))
-    [ "$mh" -lt 0 ] && mh=0
-    gum style \
-        --border rounded \
-        --border-foreground 165 \
-        --padding "1 $ph" \
-        --margin "$mv $mh" \
-        --width "$cw" \
-        --align center \
-        "$@"
+# ANSI color shortcuts (global so $() subshells can see them)
+_CM='\033[38;5;165m'   # magenta — border / accent
+_CG='\033[38;5;46m'    # green — command
+_CW='\033[38;5;250m'   # white-ish — body text
+_CD='\033[38;5;240m'   # dim gray — notes
+_CB='\033[1m'           # bold
+_CI='\033[3m'           # italic
+_CR='\033[0m'           # reset
+
+# Center styled text (with ANSI) inside a box of inner width $1.
+# $2 = styled string, $3 = visible character count (no ANSI).
+_ctr() {
+    local w="$1" s="$2" vl="$3" lp rp
+    lp=$(( (w - vl) / 2 )); [ "$lp" -lt 0 ] && lp=0
+    rp=$(( w - vl - lp ));  [ "$rp" -lt 0 ] && rp=0
+    printf '%*s%b%*s' "$lp" '' "$s" "$rp" ''
 }
 
-_cols=$(tput cols 2>/dev/null || echo 80)
-_lines=$(tput lines 2>/dev/null || echo 24)
-_cw=46   # content width inside the card
-_ph=5    # horizontal padding inside the card
+_draw_step1() {
+    local cols lines iw bw bh pad_y pad_x lpad hbar
+    cols=$(tput cols 2>/dev/null || echo 80)
+    lines=$(tput lines 2>/dev/null || echo 24)
+    iw=54; bh=14; bw=$(( iw + 2 ))
+    pad_y=$(( (lines - bh) / 2 )); [ "$pad_y" -lt 0 ] && pad_y=0
+    pad_x=$(( (cols  - bw) / 2 )); [ "$pad_x" -lt 0 ] && pad_x=0
+    lpad=$(printf '%*s' "$pad_x" '')
+    hbar=$(printf '%*s' "$iw"   '' | tr ' ' '─')
+
+    _brow()  { printf '%s%b│%b%s%b│%b\n' "$lpad" "$_CM" "$_CR" "$1" "$_CM" "$_CR"; }
+    _bempty(){ printf '%s%b│%*s│%b\n'    "$lpad" "$_CM" "$iw" '' "$_CR"; }
+
+    clear
+    local i; for (( i = 0; i < pad_y; i++ )); do printf '\n'; done
+    printf '%s%b╭%s╮%b\n' "$lpad" "$_CM" "$hbar" "$_CR"
+    _bempty
+    _brow "$(_ctr $iw "${_CB}${_CM}Step 1.  Prepare your coding agent${_CR}" 35)"
+    _bempty
+    _brow "$(_ctr $iw "${_CW}Launch any coding agent on your host${_CR}" 36)"
+    _bempty
+    _brow "$(_ctr $iw "${_CG}claude / cursor / windsurf / opencode / codex / pi${_CR}" 50)"
+    _bempty
+    _brow "$(_ctr $iw "${_CD}The next screen will give you a prompt${_CR}" 38)"
+    _brow "$(_ctr $iw "${_CD}to get the agent started${_CR}" 24)"
+    _bempty
+    _brow "$(_ctr $iw "${_CD}${_CI}Press enter to continue${_CR}" 23)"
+    _bempty
+    printf '%s%b╰%s╯%b\n' "$lpad" "$_CM" "$hbar" "$_CR"
+}
+
+_draw_step2() {
+    local cols iw bw pad_x lpad hbar
+    cols=$(tput cols 2>/dev/null || echo 80)
+    iw=54; bw=$(( iw + 2 ))
+    pad_x=$(( (cols - bw) / 2 )); [ "$pad_x" -lt 0 ] && pad_x=0
+    lpad=$(printf '%*s' "$pad_x" '')
+    hbar=$(printf '%*s' "$iw"   '' | tr ' ' '─')
+
+    _brow2()  { printf '%s%b│%b%s%b│%b\n' "$lpad" "$_CM" "$_CR" "$1" "$_CM" "$_CR"; }
+    _bempty2(){ printf '%s%b│%*s│%b\n'    "$lpad" "$_CM" "$iw" '' "$_CR"; }
+
+    clear
+    printf '%s%b╭%s╮%b\n' "$lpad" "$_CM" "$hbar" "$_CR"
+    _bempty2
+    _brow2 "$(_ctr $iw "${_CB}${_CM}step 2 / 2${_CR}" 10)"
+    _bempty2
+    _brow2 "$(_ctr $iw "${_CW}paste this prompt into your coding agent${_CR}" 40)"
+    _bempty2
+    printf '%s%b╰%s╯%b\n' "$lpad" "$_CM" "$hbar" "$_CR"
+    echo
+
+    printf '%s\n' "$prompt_text" | bat -l md --style=plain --paging=never
+    printf '\033]52;c;%s\a' "$(printf '%s' "$prompt_text" | base64 -w 0)"
+
+    echo
+    printf '%b\n' "${_CM}${_CI}prompt copied to clipboard — paste into your agent on the host (or copy from above if it didn't land).${_CR}"
+    echo
+}
 
 # ── Step 1 ──────────────────────────────────────────────────────────────────
-clear
-_mv=$(( (_lines - 16) / 2 ))
-[ "$_mv" -lt 0 ] && _mv=0
+_redraw=1
+trap '_redraw=1' WINCH
+while true; do
+    (( _redraw )) && { _draw_step1; _redraw=0; }
+    read -rs -t 0.1 < /dev/tty && break
+done
+trap - WINCH
 
-_card "$_mv" "$_cw" "$_ph" \
-    "$(gum style --foreground 165 --bold 'Step 1.  Prepare your coding agent')" \
-    "" \
-    "$(gum style --foreground 250 'Launch Claude Code on your host')" \
-    "" \
-    "$(gum style --foreground 46 --align left 'claude')" \
-    "" \
-    "$(gum style --foreground 240 'The next screen will give you a prompt to get the agent started')" \
-    "" \
-    "$(gum style --foreground 240 --italic 'Press enter to continue')"
-
-read -rs < /dev/tty
-
-# ── Step 2 ──────────────────────────────────────────────────────────────────
-clear
-_card 2 "$_cw" "$_ph" \
-    "$(gum style --foreground 165 --bold 'step 2 / 2')" \
-    "" \
-    "$(gum style --foreground 250 'paste this prompt into claude code')"
-echo
-
-printf '%s\n' "$prompt_text" | bat -l md --style=plain --paging=never
-
-# Copy prompt to host clipboard via OSC 52 escape sequence. Modern terminals
-# (iTerm2, Alacritty, WezTerm, Kitty, foot, Windows Terminal) intercept this
-# and write to the system clipboard. Older terminals ignore the sequence
-# silently — the prompt is still on screen for manual copy.
-printf '\033]52;c;%s\a' "$(printf '%s' "$prompt_text" | base64 -w 0)"
-
-echo
-gum style --foreground 165 --italic "prompt copied to clipboard — paste into claude code on your host (or copy from above if it didn't land)."
-echo
-gum style --foreground 240 --italic 'Press enter to continue'
-read -rs < /dev/tty
-
-# ── Waiting for Claude to connect ────────────────────────────────────────────
-clear
-_bw=50; _ph=4
-_mh=$(( (_cols - _bw - _ph*2 - 2) / 2 )); [ "$_mh" -lt 0 ] && _mh=0
-_mv=$(( (_lines - 10) / 2 ));              [ "$_mv" -lt 0 ] && _mv=0
-
-gum style \
-    --border rounded --border-foreground 165 \
-    --padding "1 $_ph" --margin "$_mv $_mh" \
-    --width "$_bw" --align center \
-    "$(gum style --foreground 165 --bold 'Waiting for Claude to connect...')" \
-    "" \
-    "$(gum style --foreground 250 'Paste the prompt into Claude Code.')" \
-    "$(gum style --foreground 250 'Claude will connect automatically.')"
-
-rm -f /tmp/yeet-go
-while [ ! -f /tmp/yeet-go ]; do sleep 0.1; done
+# ── Step 2 — show prompt, spin until agent connects ──────────────────────────
+_SPIN_FRAMES=(⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏)
+_spin_i=0
+_redraw=1
+trap '_redraw=1' WINCH
+while true; do
+    if (( _redraw )); then
+        _draw_step2
+        _redraw=0
+    fi
+    [ -f /tmp/yeet-go ] && break
+    printf '\r%b%s%b  waiting for agent to connect...\033[K' \
+        "$_CM" "${_SPIN_FRAMES[$(( _spin_i % 10 ))]}" "$_CR"
+    _spin_i=$(( _spin_i + 1 ))
+    sleep 0.1
+done
+trap - WINCH
+printf '\r\033[K'
 rm -f /tmp/yeet-go
 
 # ── Spin up the wheel session and hand control to Claude ─────────────────────
