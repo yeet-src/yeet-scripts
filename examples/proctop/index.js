@@ -153,7 +153,12 @@ function renderFrame(pids, size) {
   const sorted = pids.slice().sort(sortFn);
   const maxRows = rowOverride ?? Math.max(5, size.rows - 3);
 
-  const out = [summary(pids), renderHeader(widths)];
+  const note = style.dim(
+    "IBIX mode ON — %CPU is per-core (a process can exceed 100%; " +
+      "not divided by core count)",
+  );
+
+  const out = [summary(pids), note, renderHeader(widths)];
   for (const p of sorted.slice(0, maxRows)) out.push(renderRow(p, widths));
   return out;
 }
