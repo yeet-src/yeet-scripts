@@ -18,6 +18,18 @@ This repo contains three scripts you can run and modify today:
 - **[`docker-net`](#making-new-connections-with-docker-net)** — a spatial, live-updating map of every container on the host, grouped by docker network.
 - **[`metropolis`](#having-fun-with-metropolis)** — an art-deco city that breathes your system: skyscrapers, neon billboards, and your top processes walking the boulevard as citizens.
 
+## Try it in a demo container
+
+Don't have a Linux machine handy? Boot a self-contained demo environment with one command:
+
+```sh
+make
+```
+
+This builds and launches a Docker container with yeet pre-installed, a full terminal setup, and all the example scripts baked in. You'll land in an interactive shell run any script from there:
+
+Run `make build` to rebuild the image after making changes, and `make run` to launch an already-built image.
+
 ## Run a script in 60 seconds
 
 Requirements:
